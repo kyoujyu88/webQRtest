@@ -2,74 +2,104 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>IE11対応テスト</title>
+    <title>Web打刻システム（IE11対応）</title>
     <style>
-        body { padding: 30px; font-family: sans-serif; }
-        #log-area {
-            margin-top: 20px; padding: 15px; border: 1px solid #ccc;
-            background-color: #f9f9f9; min-height: 200px; white-space: pre-wrap;
-        }
+        body { padding: 30px; font-family: sans-serif; text-align: center; background-color: #f0f8ff; }
+        .container { background-color: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); display: inline-block; }
+        h2 { color: #333; }
+        #user-name-display { font-size: 1.5em; font-weight: bold; color: #0078D4; margin: 20px 0; }
+        .btn { padding: 15px 40px; font-size: 1.2em; margin: 10px; cursor: pointer; border: none; border-radius: 5px; color: white; font-weight: bold; }
+        .btn-in { background-color: #107C41; } /* 緑色 */
+        .btn-out { background-color: #D83B01; } /* 赤色 */
+        #log-area { margin-top: 30px; padding: 15px; border: 1px solid #ccc; background-color: #f9f9f9; text-align: left; height: 150px; overflow-y: auto; }
     </style>
 </head>
-<body>
+<body onload="getCurrentUser()">
 
-    <h2>IE11対応テスト（Title列のみ）</h2>
-    <p>古いJavaScriptの言葉だけで通信してみますっ！</p>
-    <button onclick="runIETest()" style="padding: 10px 20px; font-size: 1.1em; background-color: #0078D4; color: white; cursor: pointer;">テスト実行</button>
+    <div class="container">
+        <h2>Web打刻システム</h2>
+        
+        <div id="user-name-display">ユーザー情報を確認中...</div>
 
-    <div id="log-area">ここにログが出ますっ...</div>
+        <button class="btn btn-in" onclick="recordAttendance('出勤')">出勤</button>
+        <button class="btn btn-out" onclick="recordAttendance('退勤')">退勤</button>
+        
+        <div id="log-area">ここにログが出ますっ...</div>
+    </div>
 
     <script>
         // ★設定エリア★
-        // varを使って古い書き方にしていますっ
         var SITE_URL = "https://na-n.gbase.gsdf.mod.go.jp/na/NA/NAFin/HQ/sinsa";
-        var LIST_NAME = "TestList"; // 用意していただいたリストの名前にしてくださいね
+        var LIST_NAME = "TestList"; 
 
-        // 画面に文字を出すためのお手伝い関数です
+        // 取得したユーザー名を保存しておく変数です
+        var loginUserName = "取得失敗"; 
+
         function logMessage(msg) {
             var logArea = document.getElementById('log-area');
-            logArea.innerText += msg + "\n";
+            logArea.innerText = msg + "\n" + logArea.innerText; // 新しいログを上に足していきます
         }
 
-        // ボタンを押した時に動く処理です
-        function runIETest() {
-            var logArea = document.getElementById('log-area');
-            logArea.innerText = "テストを開始しますっ...\n";
-            logMessage("SITE_URL: " + SITE_URL);
-            logMessage("LIST_NAME: " + LIST_NAME);
-            logMessage("-------------------------");
-
-            logMessage("[1] 通行証を取りに行きます...");
-
-            // fetchの代わりに、昔ながらの XMLHttpRequest を使います！
+        // ① SharePointに「今ログインしている人」を聞きに行く処理です
+        function getCurrentUser() {
             var xhr = new XMLHttpRequest();
-            xhr.open("POST", SITE_URL + "/_api/contextinfo", true);
+            // _api/web/currentuser で現在のユーザー情報を教えてもらえます！
+            xhr.open("GET", SITE_URL + "/_api/web/currentuser", true);
             xhr.setRequestHeader("Accept", "application/json; odata=nometadata");
 
-            // 通信が終わった時の処理です
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4) {
                     if (xhr.status === 200) {
                         var response = JSON.parse(xhr.responseText);
-                        var formDigest = response.FormDigestValue;
-                        logMessage("  → 通行証ゲットです！");
-                        
-                        // 通行証が取れたら、次の「書き込み処理」を呼び出します
-                        writeToList(formDigest);
+                        loginUserName = response.Title; // ここで「自衛隊 太郎」などの名前が取れます！
+                        document.getElementById('user-name-display').innerText = loginUserName + " さん、お疲れ様です！";
+                        logMessage("ユーザー情報を取得しました: " + loginUserName);
                     } else {
-                        logMessage("【失敗1】通行証がもらえませんでしたっ。 Status: " + xhr.status);
+                        document.getElementById('user-name-display').innerText = "ユーザー情報の取得に失敗しましたっ";
+                        logMessage("ユーザー取得エラー: Status " + xhr.status);
                     }
                 }
             };
             xhr.send();
         }
 
-        // リストに書き込む処理です
-        function writeToList(formDigest) {
-            logMessage("[2] リストへデータを送信します...");
+        // ② ボタンが押されたら動く処理（出勤・退勤共通です）
+        function recordAttendance(type) {
+            if (loginUserName === "取得失敗" || loginUserName === "") {
+                alert("ユーザー情報が確認できていませんっ。画面を更新してください。");
+                return;
+            }
+
+            logMessage(type + "の記録を開始します...");
+
+            // まず通行証を取りに行きます
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", SITE_URL + "/_api/contextinfo", true);
+            xhr.setRequestHeader("Accept", "application/json; odata=nometadata");
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    var response = JSON.parse(xhr.responseText);
+                    var formDigest = response.FormDigestValue;
+                    
+                    // 通行証が取れたらリストへ書き込みます
+                    writeToList(formDigest, type);
+                }
+            };
+            xhr.send();
+        }
+
+        // ③ リストへ実際に書き込む処理です
+        function writeToList(formDigest, type) {
+            // 現在の時間を「YYYY/MM/DD HH:MM」の形で作ります
+            var now = new Date();
+            var timeStr = now.getFullYear() + "/" + (now.getMonth() + 1) + "/" + now.getDate() + " " + now.getHours() + ":" + ("0" + now.getMinutes()).slice(-2);
+
+            // 今回はTestListのTitle列に「篤志 - 出勤 - 2026/03/03 12:00」のように全部まとめて書き込みます
+            var recordText = loginUserName + " - " + type + " - " + timeStr;
 
             var itemData = {
-                "Title": "IE11対応テスト成功ですっ！"
+                "Title": recordText
             };
 
             var xhr2 = new XMLHttpRequest();
@@ -80,18 +110,16 @@
 
             xhr2.onreadystatechange = function() {
                 if (xhr2.readyState === 4) {
-                    // 200か201なら成功です
                     if (xhr2.status === 200 || xhr2.status === 201) {
-                        logMessage("  → 【大成功！】リストへの書き込みが完了しました！");
+                        alert(loginUserName + "さんの" + type + "時間を記録しました！\n" + timeStr);
+                        logMessage("【大成功】記録完了: " + recordText);
                     } else {
-                        logMessage("【失敗2】リストへの書き込みエラーですっ。 Status: " + xhr2.status);
-                        logMessage("詳細: " + xhr2.responseText);
+                        logMessage("【失敗】書き込みエラーですっ。 Status: " + xhr2.status);
                     }
                 }
             };
             xhr2.send(JSON.stringify(itemData));
         }
     </script>
-
 </body>
 </html>
