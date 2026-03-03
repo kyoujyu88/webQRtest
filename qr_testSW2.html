@@ -3,62 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR勤怠打刻システム (SharePoint連携版)</title>
+    <title>SharePoint通信テスト</title>
     
-    <script src="html5-qrcode.min.js"></script>
     <script src="sweetalert2.all.min.js"></script>
     
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; }
-        #reader { width: 100%; max-width: 500px; margin: 0 auto; }
+        body { font-family: sans-serif; text-align: center; padding: 30px; }
+        .test-box { max-width: 400px; margin: 0 auto; padding: 20px; border: 2px dashed #ccc; border-radius: 10px; }
+        input[type="text"] { font-size: 1.2em; padding: 10px; width: 80%; margin-bottom: 20px; text-align: center; }
+        button.submit-btn { font-size: 1.2em; padding: 10px 30px; background-color: #0078D4; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button.submit-btn:hover { background-color: #005A9E; }
         
         .toggle-area { margin: 20px 0; }
-        .toggle-area label {
-            padding: 10px 30px;
-            font-size: 1.5em;
-            border: 2px solid #ccc;
-            border-radius: 10px;
-            cursor: pointer;
-            margin: 0 10px;
-            transition: 0.3s;
-        }
-        input[type="radio"]:checked + label {
-            background-color: #4CAF50;
-            color: white;
-            border-color: #4CAF50;
-        }
+        .toggle-area label { padding: 10px 20px; font-size: 1.2em; border: 2px solid #ccc; border-radius: 10px; cursor: pointer; margin: 0 5px; }
+        input[type="radio"]:checked + label { background-color: #4CAF50; color: white; border-color: #4CAF50; }
         input[type="radio"] { display: none; }
     </style>
 </head>
 <body>
 
-    <h2>QRコード 打刻システム</h2>
+    <h2>リスト書き込みテスト</h2>
     
-    <div class="toggle-area">
-        <input type="radio" id="type-in" name="attendance_type" value="出勤" checked>
-        <label for="type-in">出勤</label>
+    <div class="test-box">
+        <input type="text" id="input-name" placeholder="お名前を入力 (例: Atsushi)">
         
-        <input type="radio" id="type-out" name="attendance_type" value="退勤">
-        <label for="type-out">退勤</label>
+        <div class="toggle-area">
+            <input type="radio" id="type-in" name="attendance_type" value="出勤" checked>
+            <label for="type-in">出勤</label>
+            
+            <input type="radio" id="type-out" name="attendance_type" value="退勤">
+            <label for="type-out">退勤</label>
+        </div>
+
+        <button class="submit-btn" onclick="runTest()">テスト送信する</button>
     </div>
 
-    <div id="reader"></div>
-
     <script>
-        // --- ★設定エリア（篤志さんが書き換える場所です！）★ ---
-        // 1. SharePointのサイトURL（リストがある場所のURLです）
+        // --- ★設定エリア（ここだけ書き換えてください！）★ ---
         const SITE_URL = "https://あなたのテナント名.sharepoint.com/sites/サイト名"; 
-        
-        // 2. 作成したリストの名前
         const LIST_NAME = "QR打刻記録"; 
         // ----------------------------------------------------
 
-        let isProcessing = false;
-
-        // SharePointに書き込むための特別な関数です
+        // SharePointに書き込む関数（前回と全く同じものです）
         async function saveToSharePoint(name, type, timeStr) {
             try {
-                // ① まず、SharePointから書き込み用の「通行証」をもらいます
                 const contextResponse = await fetch(SITE_URL + "/_api/contextinfo", {
                     method: "POST",
                     headers: { "Accept": "application/json; odata=nometadata" }
@@ -66,14 +54,12 @@
                 const contextData = await contextResponse.json();
                 const formDigestValue = contextData.FormDigestValue;
 
-                // ② 送るデータを準備します（リストの列名と合わせます）
                 const itemData = {
-                    "Title": name,               // 最初からある「タイトル」列（氏名）
-                    "AttendanceType": type,      // 「AttendanceType」という列（出勤/退勤）
-                    "TimeRecord": timeStr        // 「TimeRecord」という列（打刻時間）
+                    "Title": name,
+                    "AttendanceType": type,
+                    "TimeRecord": timeStr
                 };
 
-                // ③ 通行証と一緒に、リストへデータをPOST（送信）します！
                 const addResponse = await fetch(SITE_URL + "/_api/web/lists/getbytitle('" + LIST_NAME + "')/items", {
                     method: "POST",
                     headers: {
@@ -84,18 +70,21 @@
                     body: JSON.stringify(itemData)
                 });
 
-                return addResponse.ok; // 成功したら true を返します
+                return addResponse.ok;
             } catch (error) {
                 console.error("通信エラー:", error);
                 return false;
             }
         }
 
-        // カメラで読み取った時の処理です
-        async function onScanSuccess(decodedText, decodedResult) {
-            if (isProcessing) { return; }
-            isProcessing = true;
-            
+        // ボタンを押した時の処理です
+        async function runTest() {
+            let nameInput = document.getElementById('input-name').value;
+            if (nameInput === "") {
+                Swal.fire('お願い', 'お名前を入力してくださいっ', 'warning');
+                return;
+            }
+
             let selectedType = document.querySelector('input[name="attendance_type"]:checked').value;
             
             let now = new Date();
@@ -105,43 +94,23 @@
                              now.getHours().toString().padStart(2, '0') + ":" + 
                              now.getMinutes().toString().padStart(2, '0');
 
-            // 画面に「保存中…」のアラートを出しておきます
             Swal.fire({
                 title: '通信中...',
-                text: 'SharePointに記録していますっ',
+                text: 'SharePointにお手紙を送っていますっ',
                 allowOutsideClick: false,
                 didOpen: () => { Swal.showLoading(); }
             });
 
-            // さっき作ったSharePoint用の関数を呼び出します
-            let isSuccess = await saveToSharePoint(decodedText, selectedType, timeString);
+            // 書き込みを実行します！
+            let isSuccess = await saveToSharePoint(nameInput, selectedType, timeString);
 
             if (isSuccess) {
-                // 成功した時の綺麗なポップアップです！
-                Swal.fire({
-                    title: selectedType + 'を記録しました！',
-                    text: decodedText + 'さん (' + timeString + ')',
-                    icon: 'success',
-                    timer: 2000,
-                    showConfirmButton: false
-                }).then(() => {
-                    isProcessing = false;
-                });
+                Swal.fire('大成功です！', nameInput + 'さんのデータをリストに追加しました！', 'success');
+                document.getElementById('input-name').value = ""; // 成功したら名前を空っぽにします
             } else {
-                // 失敗した時のポップアップです…
-                Swal.fire('エラー', 'SharePointに保存できませんでした…', 'error');
-                isProcessing = false;
+                Swal.fire('エラー', 'リストに書き込めませんでした……。F12キーを押してコンソールの赤い文字を確認してみてください。', 'error');
             }
         }
-
-        function onScanFailure(error) {
-            // 失敗時は何もしません
-        }
-
-        let html5QrcodeScanner = new Html5QrcodeScanner(
-            "reader", { fps: 10, qrbox: {width: 250, height: 250} }, false
-        );
-        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     </script>
 
 </body>
