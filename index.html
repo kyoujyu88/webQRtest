@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>SharePoint 分割テスト</title>
+    <style>
+        body { padding: 30px; font-family: sans-serif; }
+        #log-area { 
+            margin-top: 20px; padding: 15px; border: 1px solid #ccc; 
+            background-color: #f9f9f9; min-height: 200px; white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>機能分割テスト（Title列のみ）</h2>
+    <button onclick="runTest()" style="padding: 10px 20px; font-size: 1.1em; background-color: #0078D4; color: white;">テスト実行</button>
+
+    <div id="log-area">ここにログが出ますっ...</div>
+
+    <script src="config.js"></script>
+    <script src="auth.js"></script>
+    <script src="api.js"></script>
+    <script src="main.js"></script>
+
+</body>
+</html>
