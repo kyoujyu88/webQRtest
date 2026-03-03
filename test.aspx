@@ -2,47 +2,80 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>最小構成テスト</title>
+    <title>画面出力テスト</title>
+    <style>
+        body { padding: 30px; font-family: sans-serif; }
+        #log-area { 
+            margin-top: 20px; 
+            padding: 15px; 
+            border: 1px solid #ccc; 
+            background-color: #f9f9f9; 
+            min-height: 200px; 
+            white-space: pre-wrap; /* エラーをそのまま表示します */
+            font-size: 0.9em;
+        }
+        .success-text { color: green; font-weight: bold; }
+        .error-text { color: red; font-weight: bold; }
+    </style>
 </head>
-<body style="padding: 30px; font-family: sans-serif;">
+<body>
 
-    <h2>Title列だけの最小テスト</h2>
-    <p>F12キーでコンソールを開いてから、ボタンを押してくださいっ。</p>
-    <button onclick="runMinimalTest()" style="padding: 15px 30px; font-size: 1.2em; background-color: #0078D4; color: white; cursor: pointer;">Titleのみ送信</button>
+    <h2>Title列だけの画面出力テスト</h2>
+    <button onclick="runVisualTest()" style="padding: 15px 30px; font-size: 1.2em; background-color: #0078D4; color: white; cursor: pointer;">テスト実行</button>
+
+    <div id="log-area">ここに進行状況が表示されます...</div>
 
     <script>
-        async function runMinimalTest() {
-            // ★設定エリア★
+        // ログを画面に出力するための関数です
+        function outputLog(message, isError = false) {
+            const logArea = document.getElementById('log-area');
+            const p = document.createElement('div');
+            p.textContent = message;
+            if (isError) { p.className = 'error-text'; }
+            logArea.appendChild(p);
+        }
+
+        async function runVisualTest() {
+            // ★設定エリア★ (前回のテストと同じURLとリスト名にしてください)
             const SITE_URL = "https://na-n.gbase.gsdf.mod.go.jp/na/NA/NAFin/HQ/sinsa";
-            
-            // 注意！ここは画面に表示されているリスト名（日本語なら日本語で）を入れてください
             const LIST_NAME = "webQRtest"; 
+
+            // ログエリアをクリア
+            document.getElementById('log-area').innerHTML = '';
             
-            alert("テストを開始します！F12のコンソールを見ていてくださいね。");
-            console.log("1. 通行証（RequestDigest）を取りに行きます...");
+            outputLog("テストを開始します...");
+            outputLog("SITE_URL: " + SITE_URL);
+            outputLog("LIST_NAME: " + LIST_NAME);
+            outputLog("------------------------------------");
 
             try {
-                // ① 通行証をもらう
+                // ----------------------------------------------------
+                // 1. ContextInfo (通行証) の取得
+                // ----------------------------------------------------
+                outputLog("[1] 通行証（RequestDigest）を取りに行きます...");
+                
                 const ctxRes = await fetch(SITE_URL + "/_api/contextinfo", {
                     method: "POST",
                     headers: { "Accept": "application/json; odata=nometadata" }
                 });
 
                 if (!ctxRes.ok) {
-                    alert("【失敗1】通行証がもらえませんでした！URLが違うかも？");
-                    console.error("エラー詳細:", await ctxRes.text());
-                    return;
+                    outputLog("【失敗】通行証の取得でエラーになりました！ (Status: " + ctxRes.status + ")", true);
+                    const errorText = await ctxRes.text();
+                    outputLog("詳細: " + errorText, true);
+                    return; // ここで終了
                 }
 
+                outputLog("  → 通信成功！(Status: " + ctxRes.status + ")");
                 const ctxData = await ctxRes.json();
                 const formDigest = ctxData.FormDigestValue;
-                console.log("2. 通行証ゲット！:", formDigest.substring(0, 15) + "...");
+                outputLog("  → 通行証をゲットしました！ (最初の10文字: " + formDigest.substring(0, 10) + "...)");
 
-                // ② リストに書き込む（Title列だけ！！）
-                console.log("3. データを送信します...");
-                const itemData = {
-                    "Title": "テスト成功です！！"
-                };
+                // ----------------------------------------------------
+                // 2. リストへのデータ書き込み (Titleのみ)
+                // ----------------------------------------------------
+                outputLog("[2] リストへデータを送信します...");
+                const itemData = { "Title": "テスト成功です！！" };
 
                 const addRes = await fetch(SITE_URL + "/_api/web/lists/getbytitle('" + LIST_NAME + "')/items", {
                     method: "POST",
@@ -54,18 +87,26 @@
                     body: JSON.stringify(itemData)
                 });
 
-                if (addRes.ok) {
-                    alert("【大成功！！！】リストにデータが入りました！");
-                    console.log("4. 完璧に成功しました！リストの画面を確認してみてくださいっ。");
-                } else {
+                if (!addRes.ok) {
+                    outputLog("【失敗】リストの書き込みでエラーになりました！ (Status: " + addRes.status + ")", true);
                     const errorDetails = await addRes.text();
-                    alert("【失敗2】書き込みでエラーが出ました。F12コンソールを見てください。");
-                    console.error("★書き込みエラー詳細★:", errorDetails);
+                    outputLog("詳細: " + errorDetails, true);
+                    return; // ここで終了
                 }
 
+                // ----------------------------------------------------
+                // 3. 成功！
+                // ----------------------------------------------------
+                outputLog("  → 通信成功！(Status: " + addRes.status + ")");
+                outputLog("【大成功！！！】リストにデータが入りました！", false);
+                const p = document.createElement('div');
+                p.className = 'success-text';
+                p.textContent = "SharePointのリストを確認してみてください！";
+                document.getElementById('log-area').appendChild(p);
+
             } catch (error) {
-                alert("【予期せぬエラー】通信そのものができませんでした。");
-                console.error("通信エラー:", error);
+                outputLog("【予期せぬエラー】通信処理そのものが失敗しました。", true);
+                outputLog("詳細: " + error.message, true);
             }
         }
     </script>
