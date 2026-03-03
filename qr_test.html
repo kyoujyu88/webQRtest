@@ -3,45 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QRコードリーダー テスト</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <title>QR勤怠打刻</title>
+    <script src="html5-qrcode.min.js"></script>
     <style>
         body { font-family: sans-serif; text-align: center; padding: 20px; }
         #reader { width: 100%; max-width: 500px; margin: 0 auto; }
         #result { margin-top: 20px; font-size: 1.2em; font-weight: bold; color: blue; }
+        
+        /* トグルボタンを可愛くする魔法ですっ */
+        .toggle-area { margin: 20px 0; }
+        .toggle-area label {
+            padding: 10px 30px;
+            font-size: 1.5em;
+            border: 2px solid #ccc;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 0 10px;
+            transition: 0.3s;
+        }
+        /* 選ばれている時の色（緑色になります！） */
+        input[type="radio"]:checked + label {
+            background-color: #4CAF50;
+            color: white;
+            border-color: #4CAF50;
+        }
+        /* ラジオボタンの丸いぽっちは隠しちゃいます */
+        input[type="radio"] { display: none; }
     </style>
 </head>
 <body>
 
-    <h2>QRコード スキャナー</h2>
+    <h2>QRコード 打刻システム</h2>
     
+    <div class="toggle-area">
+        <input type="radio" id="type-in" name="attendance_type" value="出勤" checked>
+        <label for="type-in">出勤</label>
+        
+        <input type="radio" id="type-out" name="attendance_type" value="退勤">
+        <label for="type-out">退勤</label>
+    </div>
+
     <div id="reader"></div>
     
-    <div id="result">QRコードをカメラにかざしてください</div>
+    <div id="result">打刻区分を選んで、QRコードをかざしてください</div>
 
     <script>
-        // 読み取り成功時に実行される処理
+        // ピッ！と読み取れた時に動くところです
         function onScanSuccess(decodedText, decodedResult) {
-            // 結果を画面のテキストとして表示
-            document.getElementById('result').innerText = "読み取り結果: " + decodedText;
             
-            // 一度読み取ったらカメラを止めたい場合は下の行の // を消してください
-            // html5QrcodeScanner.clear();
+            // 今、出勤と退勤、どっちのボタンが選ばれているか確認します
+            let selectedType = document.querySelector('input[name="attendance_type"]:checked').value;
+            
+            // 今の時間も調べます
+            let now = new Date();
+            let hours = now.getHours().toString().padStart(2, '0');
+            let minutes = now.getMinutes().toString().padStart(2, '0');
+            let timeString = hours + ":" + minutes;
+
+            // 画面に「出勤〇〇さん、何時何分」って表示しますっ
+            document.getElementById('result').innerText = 
+                "【" + selectedType + "】 " + decodedText + "さん (" + timeString + ") を記録しました！";
         }
 
-        // 読み取り失敗時（QRコードが画面内にない時など）の処理
+        // 読み取れなかった時は何もしません
         function onScanFailure(error) {
-            // 常にエラーが出続けるので、基本は何もしなくてOKです
         }
 
-        // カメラとスキャナーの初期設定
+        // カメラの準備です
         let html5QrcodeScanner = new Html5QrcodeScanner(
             "reader",
             { fps: 10, qrbox: {width: 250, height: 250} },
             false
         );
-
-        // スキャナーを起動して画面に描画
         html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     </script>
 
