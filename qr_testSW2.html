@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR勤怠打刻システム</title>
+    <title>QR勤怠打刻システム (SharePoint連携版)</title>
     
     <script src="html5-qrcode.min.js"></script>
     <script src="sweetalert2.all.min.js"></script>
@@ -12,7 +12,6 @@
         body { font-family: sans-serif; text-align: center; padding: 20px; }
         #reader { width: 100%; max-width: 500px; margin: 0 auto; }
         
-        /* トグルボタンの魔法ですっ */
         .toggle-area { margin: 20px 0; }
         .toggle-area label {
             padding: 10px 30px;
@@ -46,47 +45,101 @@
     <div id="reader"></div>
 
     <script>
-        // 連続でピピピッと読み込まないための「お休みフラグ」です
+        // --- ★設定エリア（篤志さんが書き換える場所です！）★ ---
+        // 1. SharePointのサイトURL（リストがある場所のURLです）
+        const SITE_URL = "https://あなたのテナント名.sharepoint.com/sites/サイト名"; 
+        
+        // 2. 作成したリストの名前
+        const LIST_NAME = "QR打刻記録"; 
+        // ----------------------------------------------------
+
         let isProcessing = false;
 
-        function onScanSuccess(decodedText, decodedResult) {
-            // もし今アラートを出している最中なら、新しい読み取りは無視します
+        // SharePointに書き込むための特別な関数です
+        async function saveToSharePoint(name, type, timeStr) {
+            try {
+                // ① まず、SharePointから書き込み用の「通行証」をもらいます
+                const contextResponse = await fetch(SITE_URL + "/_api/contextinfo", {
+                    method: "POST",
+                    headers: { "Accept": "application/json; odata=nometadata" }
+                });
+                const contextData = await contextResponse.json();
+                const formDigestValue = contextData.FormDigestValue;
+
+                // ② 送るデータを準備します（リストの列名と合わせます）
+                const itemData = {
+                    "Title": name,               // 最初からある「タイトル」列（氏名）
+                    "AttendanceType": type,      // 「AttendanceType」という列（出勤/退勤）
+                    "TimeRecord": timeStr        // 「TimeRecord」という列（打刻時間）
+                };
+
+                // ③ 通行証と一緒に、リストへデータをPOST（送信）します！
+                const addResponse = await fetch(SITE_URL + "/_api/web/lists/getbytitle('" + LIST_NAME + "')/items", {
+                    method: "POST",
+                    headers: {
+                        "Accept": "application/json; odata=nometadata",
+                        "Content-Type": "application/json; odata=nometadata",
+                        "X-RequestDigest": formDigestValue
+                    },
+                    body: JSON.stringify(itemData)
+                });
+
+                return addResponse.ok; // 成功したら true を返します
+            } catch (error) {
+                console.error("通信エラー:", error);
+                return false;
+            }
+        }
+
+        // カメラで読み取った時の処理です
+        async function onScanSuccess(decodedText, decodedResult) {
             if (isProcessing) { return; }
-            
-            // 処理をスタートするので、フラグをONにします
             isProcessing = true;
             
-            // 出勤か退勤か調べます
             let selectedType = document.querySelector('input[name="attendance_type"]:checked').value;
             
-            // 今の時間を調べます
             let now = new Date();
-            let hours = now.getHours().toString().padStart(2, '0');
-            let minutes = now.getMinutes().toString().padStart(2, '0');
-            let timeString = hours + ":" + minutes;
+            let timeString = now.getFullYear() + "/" + 
+                             (now.getMonth() + 1).toString().padStart(2, '0') + "/" + 
+                             now.getDate().toString().padStart(2, '0') + " " +
+                             now.getHours().toString().padStart(2, '0') + ":" + 
+                             now.getMinutes().toString().padStart(2, '0');
 
-            // SweetAlert2で、綺麗なお知らせ画面を出します！
+            // 画面に「保存中…」のアラートを出しておきます
             Swal.fire({
-                title: selectedType + 'を記録しました！',
-                text: decodedText + 'さん (' + timeString + ')',
-                icon: 'success',         // 緑色のチェックマークのアニメーションが出ます
-                timer: 2000,             // 2秒（2000ミリ秒）経ったら自動で消えます
-                showConfirmButton: false // 「OK」ボタンは隠してスッキリさせます
-            }).then(() => {
-                // アラートが消えたら、次の人が読み取れるようにフラグを戻します
-                isProcessing = false;
+                title: '通信中...',
+                text: 'SharePointに記録していますっ',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
             });
+
+            // さっき作ったSharePoint用の関数を呼び出します
+            let isSuccess = await saveToSharePoint(decodedText, selectedType, timeString);
+
+            if (isSuccess) {
+                // 成功した時の綺麗なポップアップです！
+                Swal.fire({
+                    title: selectedType + 'を記録しました！',
+                    text: decodedText + 'さん (' + timeString + ')',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                }).then(() => {
+                    isProcessing = false;
+                });
+            } else {
+                // 失敗した時のポップアップです…
+                Swal.fire('エラー', 'SharePointに保存できませんでした…', 'error');
+                isProcessing = false;
+            }
         }
 
         function onScanFailure(error) {
             // 失敗時は何もしません
         }
 
-        // カメラの準備です
         let html5QrcodeScanner = new Html5QrcodeScanner(
-            "reader",
-            { fps: 10, qrbox: {width: 250, height: 250} },
-            false
+            "reader", { fps: 10, qrbox: {width: 250, height: 250} }, false
         );
         html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     </script>
