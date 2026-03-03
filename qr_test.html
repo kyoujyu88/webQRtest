@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QRコードリーダー テスト</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        #reader { width: 100%; max-width: 500px; margin: 0 auto; }
+        #result { margin-top: 20px; font-size: 1.2em; font-weight: bold; color: blue; }
+    </style>
+</head>
+<body>
+
+    <h2>QRコード スキャナー</h2>
+    
+    <div id="reader"></div>
+    
+    <div id="result">QRコードをカメラにかざしてください</div>
+
+    <script>
+        // 読み取り成功時に実行される処理
+        function onScanSuccess(decodedText, decodedResult) {
+            // 結果を画面のテキストとして表示
+            document.getElementById('result').innerText = "読み取り結果: " + decodedText;
+            
+            // 一度読み取ったらカメラを止めたい場合は下の行の // を消してください
+            // html5QrcodeScanner.clear();
+        }
+
+        // 読み取り失敗時（QRコードが画面内にない時など）の処理
+        function onScanFailure(error) {
+            // 常にエラーが出続けるので、基本は何もしなくてOKです
+        }
+
+        // カメラとスキャナーの初期設定
+        let html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader",
+            { fps: 10, qrbox: {width: 250, height: 250} },
+            false
+        );
+
+        // スキャナーを起動して画面に描画
+        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+    </script>
+
+</body>
+</html>
