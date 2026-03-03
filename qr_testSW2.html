@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR勤怠打刻システム</title>
+    
+    <script src="html5-qrcode.min.js"></script>
+    <script src="sweetalert2.all.min.js"></script>
+    
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        #reader { width: 100%; max-width: 500px; margin: 0 auto; }
+        
+        /* トグルボタンの魔法ですっ */
+        .toggle-area { margin: 20px 0; }
+        .toggle-area label {
+            padding: 10px 30px;
+            font-size: 1.5em;
+            border: 2px solid #ccc;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 0 10px;
+            transition: 0.3s;
+        }
+        input[type="radio"]:checked + label {
+            background-color: #4CAF50;
+            color: white;
+            border-color: #4CAF50;
+        }
+        input[type="radio"] { display: none; }
+    </style>
+</head>
+<body>
+
+    <h2>QRコード 打刻システム</h2>
+    
+    <div class="toggle-area">
+        <input type="radio" id="type-in" name="attendance_type" value="出勤" checked>
+        <label for="type-in">出勤</label>
+        
+        <input type="radio" id="type-out" name="attendance_type" value="退勤">
+        <label for="type-out">退勤</label>
+    </div>
+
+    <div id="reader"></div>
+
+    <script>
+        // 連続でピピピッと読み込まないための「お休みフラグ」です
+        let isProcessing = false;
+
+        function onScanSuccess(decodedText, decodedResult) {
+            // もし今アラートを出している最中なら、新しい読み取りは無視します
+            if (isProcessing) { return; }
+            
+            // 処理をスタートするので、フラグをONにします
+            isProcessing = true;
+            
+            // 出勤か退勤か調べます
+            let selectedType = document.querySelector('input[name="attendance_type"]:checked').value;
+            
+            // 今の時間を調べます
+            let now = new Date();
+            let hours = now.getHours().toString().padStart(2, '0');
+            let minutes = now.getMinutes().toString().padStart(2, '0');
+            let timeString = hours + ":" + minutes;
+
+            // SweetAlert2で、綺麗なお知らせ画面を出します！
+            Swal.fire({
+                title: selectedType + 'を記録しました！',
+                text: decodedText + 'さん (' + timeString + ')',
+                icon: 'success',         // 緑色のチェックマークのアニメーションが出ます
+                timer: 2000,             // 2秒（2000ミリ秒）経ったら自動で消えます
+                showConfirmButton: false // 「OK」ボタンは隠してスッキリさせます
+            }).then(() => {
+                // アラートが消えたら、次の人が読み取れるようにフラグを戻します
+                isProcessing = false;
+            });
+        }
+
+        function onScanFailure(error) {
+            // 失敗時は何もしません
+        }
+
+        // カメラの準備です
+        let html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader",
+            { fps: 10, qrbox: {width: 250, height: 250} },
+            false
+        );
+        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+    </script>
+
+</body>
+</html>
